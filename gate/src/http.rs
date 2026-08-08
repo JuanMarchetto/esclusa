@@ -101,8 +101,10 @@ async fn healthz(State(st): State<SharedState>) -> Json<Value> {
     let cache = {
         let mgr = st.cache.read().await.clone();
         match mgr {
+            // 3s, not 1s: a cold connection in the pool occasionally exceeds a
+            // one-second budget and reported a healthy cache as down.
             Some(mut conn) => tokio::time::timeout(
-                Duration::from_secs(1),
+                Duration::from_secs(3),
                 redis::cmd("PING").query_async::<String>(&mut conn),
             )
             .await

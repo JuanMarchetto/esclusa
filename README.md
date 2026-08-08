@@ -21,7 +21,9 @@ The gate lives inside the project's private network. A background loop probes ea
 
 - A matching `allow` entry (`service.stop` or `service.delete`, same target, last 30 minutes) → audited: status `removed-audited`, plus an `audit` ledger entry.
 - No matching entry → unaudited drift: status `missing-unaudited`, plus a `drift` ledger entry.
-- A missing service that answers again returns to `present`, plus a `system` entry.
+- A service that answers again returns to `present`, plus a `system` entry. This holds for audited removals too, so a host that comes back is never invisible to the gate.
+
+An authorization covers exactly one removal. The `allow` has to post-date the last `audit` recorded for that target, so approving one stop does not launder every later stop of the same service for the rest of the window. That is what makes step 6 of the demo produce drift rather than a second audit.
 
 ### Sync — admin reconciliation
 

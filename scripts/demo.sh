@@ -39,27 +39,31 @@ evaluate '{"actor":"demo-script","action":"service.scale","target":"oldworker","
 step "4. Stop oldworker? Expect: allow, policy default-record"
 evaluate '{"actor":"demo-script","action":"service.stop","target":"oldworker"}'
 
-step "5. Operator step (printed, not run)"
+step "5 and 6. Taking the service offline for real"
 cat <<EOF
-Run on a machine with zcli bound to this project:
+The console does both from a browser, with no tooling:
 
-    zcli service stop oldworker
+    https://console-2a56.prg1.zerops.app
 
-The probe loop fails 3 times in ~45 s, finds the allow from step 4 in
-the ledger, and marks oldworker removed-audited. Watch it land:
+Or drive it from here. This asks the gate first, so the removal is
+AUDITED — oldworker really stops answering for 90 s and restarts itself:
+
+    curl -sS -X POST $GATE/v1/demo/decommission \\
+      -H 'content-type: application/json' -d '{"approved":true}'
+
+Wait for /v1/topology to show oldworker "present" again, then skip the
+approval. Same removal, no authorisation on record, so it is DRIFT:
+
+    curl -sS -X POST $GATE/v1/demo/decommission \\
+      -H 'content-type: application/json' -d '{"approved":false}'
+
+Either way the gate needs three failed probes, about 45 s. Watch it land:
 
     curl -sS $GATE/v1/drift
-EOF
 
-step "6. Unaudited drift (printed, not run)"
-cat <<EOF
-Bring oldworker back, wait until /v1/topology shows it "present" again,
-then stop it WITHOUT an evaluate call first:
-
-    zcli service start oldworker
-    zcli service stop oldworker
-
-No matching allow this time, so /v1/drift gains a kind=drift entry.
+With zcli bound to the project, 'zcli service stop oldworker' does the
+same thing the same way — the gate cannot tell the difference, which is
+the point.
 EOF
 
 step "Current drift and audit entries (GET /v1/drift)"

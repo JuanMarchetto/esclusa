@@ -15,7 +15,7 @@ services:
     priority: 50
     enableSubdomainAccess: true
     minContainers: 1
-    maxContainers: 3
+    maxContainers: 2
     envSecrets:
       LEDGER_SIGNING_KEY: <@generateRandomString(<64>)>
       GATE_TOKEN: <@generateRandomString(<48>)>

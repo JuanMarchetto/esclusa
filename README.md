@@ -17,7 +17,7 @@ Agents POST the action they intend to run to `/v1/evaluate`. The gate checks the
 
 ### Observe — after the action
 
-The gate lives inside the project's private network. A background loop probes each service every 15 s with a DNS lookup or a TCP connect. When a service the model lists as `present` fails three probes in a row, the gate checks the ledger:
+The gate lives inside the project's private network. A background loop probes each service every 15 s (plus up to 3 s of jitter) with a TCP connect, or a DNS lookup for services without a known port. When a service the model lists as `present` fails three probes in a row, the gate checks the ledger:
 
 - A matching `allow` entry (`service.stop` or `service.delete`, same target, last 30 minutes) → audited: status `removed-audited`, plus an `audit` ledger entry.
 - No matching entry → unaudited drift: status `missing-unaudited`, plus a `drift` ledger entry.
@@ -50,7 +50,7 @@ Zerops injects `GATE_TOKEN` into the gate container at start. Reference it as an
          +--------------+              +-----------------+
          |   console    |              |      gate       |
          | static HTML  |              | Rust/axum :3000 |
-         +--------------+              | 1-3 containers  |
+         +--------------+              | 1-2 containers  |
                                        +-----------------+
                                           |   |   |   |
        ------ private VXLAN, plain TCP; probes every 15 s ------
@@ -60,11 +60,37 @@ Zerops injects `GATE_TOKEN` into the gate container at start. Reference it as an
        ledger,     shared         decommission
        topology    rate limit     target
 
-       storage, zcp: in the topology model with probe "none"
-       (no private endpoint to probe)
+       gate, storage, zcp: in the topology model with probe "none"
+       (self, or no private endpoint to probe)
 ```
 
-The console page runs in your browser and calls the gate's public URL directly; the gate's CORS allows any origin for GET and POST. The gate stores the ledger and the topology model in Postgres. It uses Valkey to share the rate limit across up to three gate containers. `oldworker` is a small HTTP beacon that exists to be decommissioned in the demo.
+The console page runs in your browser and calls the gate's public URL directly; the gate's CORS allows any origin for GET and POST. The gate stores the ledger and the topology model in Postgres. It uses Valkey to share the rate limit across up to two gate containers. `oldworker` is a small HTTP beacon that exists to be decommissioned in the demo.
+
+## How Zerops is used
+
+The core idea only works because of one platform property: **every service in a Zerops project sits on a private VXLAN with internal DNS**, and the gate container is on it too. That is what lets the probe loop resolve `db`, `cache`, and `oldworker` by hostname and open real TCP connections to them every 15 s from inside the project — not through a public endpoint, not through an API poll, but the same way any other service on the network would see them. A gate built as an external SaaS product could only ever trust what an agent told it happened. This one watches. Take away the private network and the "observe" half of the product — the part that turns unaudited drift into something the gate can actually catch — has no way to exist.
+
+Concretely, the project uses:
+
+- **7 services, one project**: `gate` (rust@1), `console` (static), `oldworker` (nodejs@22), `db` (postgresql:single@17), `cache` (valkey:ha@7.2), `storage` (object-storage), `zcp` (zcp@1) — see `zerops-project-import.yml`.
+- **Managed Postgres and Valkey, wired with cross-service env refs.** `zerops.yaml` sets `DATABASE_URL: ${db_connectionString}` and `CACHE_URL: ${cache_connectionString}` on the gate's `run.envVariables`; Zerops resolves both only inside the running container, so no connection string ever appears in this repo or on the developer's machine.
+- **Generated secrets at import time.** `zerops-project-import.yml` provisions `GATE_TOKEN` and `LEDGER_SIGNING_KEY` with `<@generateRandomString(...)>` and injects them as env secrets — the gate never ships a default token.
+- **Public subdomains** on `gate` and `console` (`enableSubdomainAccess: true`), so the demo runs from a browser with nothing installed and the TLS-terminating L7 balancer sits in front of both.
+- **Split build/run pipelines per service** in `zerops.yaml`: the gate builds with `cargo build --release` on `rust@1` and runs the compiled binary; `oldworker` and `console` build and run separately. Deploy is `zcli push <service>` per pipeline.
+- **A real readiness gate**: the gate's `deploy.readinessCheck` polls `GET /ready` before Zerops considers a deploy healthy, matching the `/ready` endpoint's job of answering before the database is even attached.
+- **HA scaling from 1 to 2 containers** (`minContainers: 1, maxContainers: 2` on the live `gate` service) drives two concrete design decisions, not just a config knob: the ledger append uses a Postgres advisory lock (`pg_advisory_xact_lock`) so concurrent containers can't race the hash chain, and the rate limiter is backed by Valkey specifically so "30 requests per minute per client IP" means the same thing regardless of which container answers a given request.
+
+Honestly, **`storage` (object-storage) and `zcp` are provisioned in `zerops-project-import.yml` but the app never calls either.** They exist in the topology model with `probe_method: none` — the gate lists them as known services but has no private endpoint to probe, and no code path in `gate/src` touches object storage or the zcp service. They were provisioned as part of the challenge's service surface and left unused rather than wired in for the sake of a checkbox.
+
+## Architectural decisions
+
+- **Length-prefixed canonical string for the HMAC chain.** Each ledger field is encoded as `<byte-length>:<bytes>|` before signing (`gate/src/ledger.rs::push_field`). A plain `|`-joined string is not injective — a value like `actor="x|service.delete"` could be rewritten later into `actor="x", action="service.delete"` and still hash to the same bytes. Length-prefixing makes the encoding injective, so a planted delimiter can't forge a colliding row. Covered by a dedicated test (`delimiter_in_a_field_cannot_forge_a_matching_canonical_string`).
+- **Fail-closed `/v1/evaluate`.** If the gate can't get a database client, or the ledger append fails, the endpoint returns 503 and appends nothing (`gate/src/http.rs`). There is no code path that produces an `allow` or `refuse` without a durable, signed row behind it — an unreachable ledger means no decision, not a silent allow.
+- **Single-use authorizations.** `recent_allow_exists` (`gate/src/ledger.rs`) requires the `allow` to post-date the most recent `audit` already recorded for that target. Without that clause, one approved stop would retroactively cover every later stop of the same service for the rest of the 30-minute window; with it, one authorization covers exactly one removal.
+- **Probes keep watching removed-audited hosts, not just present ones.** The probe query is `WHERE probe_method <> 'none'` with no filter on status (`gate/src/probe.rs`), so a host that was audited-removed and later comes back still gets picked up and flipped to `present` with a `system`/`probe.reappear` entry. A resurrected hostname is never invisible to the gate.
+- **A Postgres advisory transaction lock serializes ledger appends across containers.** `pg_advisory_xact_lock` in `ledger::append` means the lock → read-head → compute-id/hmac → insert sequence is atomic even with multiple gate containers running concurrently under HA scaling — no two containers can compute the same next id or fork the chain.
+- **No HTTP client crate for internal calls.** `gate/src/demo.rs` hand-rolls a single fixed HTTP/1.1 POST over a raw `TcpStream` to call `oldworker`'s `/playdead`. It's the only outbound call the gate makes to another service, to one fixed host and port, so a full client dependency (reqwest is not in `Cargo.toml`) would be weight the codebase doesn't need.
+- **The demo endpoint knocks a real service over instead of faking a status.** `POST /v1/demo/decommission` calls `oldworker`'s `/playdead`, which really closes its listener for 90 s (`oldworker` self-recovers). Scenarios 2 and 3 in the console produce genuine probe failures, not a scripted status flip — the wait while probes fail is the proof, not a UI animation.
 
 ## API
 
@@ -91,11 +117,12 @@ The console page runs in your browser and calls the gate's public URL directly; 
 `actor` defaults to `anonymous`. A request with a valid `x-gate-token` marks the entry as authenticated. Both decisions return HTTP 200 — the decision is data:
 
 ```json
-{"decision": "refuse", "reason": "db is stateful", "policy": "protect-stateful",
+{"decision": "refuse", "policy": "protect-stateful",
+ "reason": "'db' is a stateful service; service.delete risks irreversible data loss",
  "entry": {"id": 42, "ts": "2026-08-08T12:00:00Z", "hmac": "...", "prev_hmac": "..."}}
 ```
 
-Errors: 400 for a malformed body, 429 over the rate limit (30 requests per minute per client IP), 503 when the ledger database is down.
+Errors: 400 for a malformed body, 401 for a missing or invalid token on `/v1/topology/sync`, 429 over the rate limit (30 requests per minute per client IP), 503 when the ledger database is down.
 
 ## Policies
 
@@ -200,3 +227,7 @@ Zerops injects `GATE_TOKEN` and `LEDGER_SIGNING_KEY` into the gate container. `z
 - Real enforcement: today the observe phase catches agents that skip the gate; nothing blocks them. A production gate would proxy the platform API itself, so a refuse stops the call.
 - Identity: SSO and per-agent credentials instead of one shared `GATE_TOKEN`.
 - Operations: alerting on drift entries, and rotation of the ledger signing key.
+
+## AI disclosure
+
+This project was built with Claude Code (Anthropic) driving implementation, review, and deployment, including multi-agent workflows used for parallel build work and adversarial code review. The author — solo, for this hackathon — directed the scope, the design decisions (the policy set, the ledger's fail-closed and single-use-authorization rules, the probe-keeps-watching behavior, what the demo would actually have to do to be honest), and the priorities for what got built versus deferred. The code, architecture, and this README reflect that direction; they were not accepted unreviewed.

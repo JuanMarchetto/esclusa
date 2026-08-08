@@ -80,6 +80,7 @@ The console page runs in your browser and calls the gate's public URL directly; 
 | GET | `/v1/topology` | none | Topology model plus live probe state |
 | GET | `/v1/drift` | none | Ledger entries of kind `drift` and `audit`, newest first |
 | POST | `/v1/topology/sync` | required `x-gate-token` | Replace the probe set, diff, flag unexplained removals |
+| POST | `/v1/demo/decommission` | none | Drives the console scenarios: really takes the decommission target offline, with or without asking first |
 
 `POST /v1/evaluate` request:
 
@@ -109,7 +110,26 @@ First match wins; the gate records every decision, allows included.
 | 5 | `unknown-target` | refuse | `service.*` or `env.*` on a hostname missing from the topology model; for `service.create`, refuse only on a hostname collision |
 | 6 | `default-record` | allow | Everything else — allowed but recorded |
 
-## Demo — seven steps
+## Demo — open the console
+
+https://console-2a56.prg1.zerops.app has three buttons. They need nothing installed.
+
+| | Scenario | What happens |
+|---|---|---|
+| 1 | Delete the database | Refused on `protect-stateful`, and the refusal is signed into the ledger. Instant. |
+| 2 | Retire a service, properly | Asks the gate first, then really takes `oldworker` offline. Three probes fail and the gate files an **audited** removal. About 45 s. |
+| 3 | Go behind the gate's back | Takes `oldworker` offline with no approval on record. Same three probes, but this time the gate flags **unaudited drift** and the banner goes red. About 45 s. |
+
+Scenarios 2 and 3 are not simulated. `oldworker` exposes `POST /playdead`, which
+closes its listener for 90 s; the gate calls it through
+`POST /v1/demo/decommission`. The service genuinely stops answering, so the
+probe failures are real failures. It restarts itself, the gate refuses to start
+a second run while one is in flight, and `oldworker` exists for no other purpose.
+
+While it runs, each card counts the probes as they fail. That wait is the point:
+it is the difference between claiming something watches the network and showing it.
+
+## Demo — from a terminal
 
 `scripts/demo.sh` runs the curl steps (1–4 and 7) and prints the operator steps. Or paste them yourself:
 

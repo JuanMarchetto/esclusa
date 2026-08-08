@@ -1,0 +1,29 @@
+zerops:
+  - setup: gate
+    build:
+      base: rust@1
+      buildCommands:
+        - cd gate && cargo build --release
+      deployFiles:
+        - gate/target/release/~gate
+    deploy:
+      readinessCheck:
+        httpGet:
+          port: 3000
+          path: /ready
+        failureTimeout: 90
+        retryPeriod: 5
+    run:
+      base: rust@1
+      ports:
+        - port: 3000
+          httpSupport: true
+      start: ./gate
+
+  - setup: console
+    build:
+      base: nodejs@22
+      deployFiles:
+        - console/~
+    run:
+      base: static

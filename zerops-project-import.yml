@@ -1,0 +1,53 @@
+#yamlPreprocessor=on
+project:
+  name: esclusa
+  description: A gate for agent-driven infrastructure. Zerops Challenge 2026.
+  corePackage: LIGHT
+  tags:
+    - hackathon
+    - esclusa
+  envVariables:
+    GATE_URL: https://gate-${zeropsSubdomainHost}-3000.prg1.zerops.app
+    CONSOLE_URL: https://console-${zeropsSubdomainHost}.prg1.zerops.app
+services:
+  - hostname: gate
+    type: rust@1
+    priority: 50
+    enableSubdomainAccess: true
+    minContainers: 1
+    maxContainers: 3
+    envSecrets:
+      LEDGER_SIGNING_KEY: <@generateRandomString(<64>)>
+      GATE_TOKEN: <@generateRandomString(<48>)>
+
+  - hostname: db
+    type: postgresql:single@17
+    priority: 100
+
+  - hostname: cache
+    type: valkey@7.2
+    priority: 100
+
+  - hostname: storage
+    type: object-storage
+    objectStorageSize: 1
+    objectStoragePolicy: private
+    priority: 100
+
+  - hostname: console
+    type: static
+    priority: 10
+    enableSubdomainAccess: true
+    minContainers: 1
+    maxContainers: 1
+
+  - hostname: zcp
+    type: zcp@1
+    priority: 80
+
+  - hostname: oldworker
+    type: nodejs@22
+    startWithoutCode: true
+    priority: 20
+    minContainers: 1
+    maxContainers: 1

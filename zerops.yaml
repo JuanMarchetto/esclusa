@@ -11,8 +11,8 @@ zerops:
         httpGet:
           port: 3000
           path: /ready
-        failureTimeout: 90
-        retryPeriod: 5
+        failureTimeout: 90s
+        retryPeriod: 10s
     run:
       base: rust@1
       ports:

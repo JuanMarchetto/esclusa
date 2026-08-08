@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "deny": [
+      "mcp__zerops__zerops_delete",
+      "mcp__zerops__zerops_deploy",
+      "mcp__zerops__zerops_env",
+      "mcp__zerops__zerops_manage",
+      "mcp__zerops__zerops_scale",
+      "mcp__zerops__zerops_subdomain",
+      "mcp__zerops__zerops_import",
+      "mcp__zerops__zerops_workflow",
+      "mcp__zerops__zerops_mount",
+      "mcp__zerops__zerops_process"
+    ]
+  }
+}

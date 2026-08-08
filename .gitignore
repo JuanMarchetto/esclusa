@@ -2,3 +2,4 @@
 .zcp/
 .env
 target/
+.gstack/

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "zerops": {
+      "args": [
+        "serve"
+      ],
+      "command": "zcp",
+      "type": "stdio"
+    }
+  }
+}

@@ -1,0 +1,4 @@
+.mcp.json
+.zcp/
+.env
+target/

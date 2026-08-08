@@ -4,8 +4,9 @@ A safety gate for agent-driven infrastructure on Zerops. Every mutating call a c
 
 Built solo for the Zerops Challenge, August 8–9, 2026.
 
-- Gate API: https://gate-2a56-3000.prg1.zerops.app
 - Console: https://console-2a56.prg1.zerops.app
+- Gate API: https://gate-2a56-3000.prg1.zerops.app
+- Demo video (97 s): https://youtu.be/-iKw1haZ34E
 
 ## How it works
 

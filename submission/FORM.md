@@ -32,14 +32,10 @@ https://gate-2a56-3000.prg1.zerops.app — both stay up through judging)
 
 ## Demo video
 
-The file is `submission/esclusa-demo.mp4` in the repo (97 s, 1080p, narrated).
+https://youtu.be/-iKw1haZ34E
 
-- If the form wants a URL, the direct link is:
-  https://github.com/JuanMarchetto/esclusa/raw/main/submission/esclusa-demo.mp4
-- If it wants an upload, use the local file:
-  `/home/marche/esclusa/submission/esclusa-demo.mp4`
-- If it wants YouTube/streamable, upload the same file there first and paste that
-  link (better preview than the raw GitHub link).
+(same file also lives in the repo at `submission/esclusa-demo.mp4`, and the
+README links the YouTube URL near the top)
 
 ## Social post (link)
 

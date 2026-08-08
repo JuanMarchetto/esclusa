@@ -3,6 +3,7 @@
 //! /ready never depends on anything but the process itself.
 
 mod db;
+mod demo;
 mod http;
 mod ledger;
 mod policy;

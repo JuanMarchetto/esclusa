@@ -15,6 +15,7 @@ use axum::{Json, Router};
 use serde_json::{json, Value};
 use tower_http::cors::{Any, CorsLayer};
 
+use crate::demo;
 use crate::ledger::{self, NewEntry};
 use crate::policy::{self, Effect};
 use crate::rate_limit;
@@ -38,6 +39,7 @@ pub fn router(state: SharedState) -> Router {
         .route("/v1/topology", get(topology_get))
         .route("/v1/drift", get(drift))
         .route("/v1/topology/sync", post(topology_sync))
+        .route("/v1/demo/decommission", post(demo_decommission))
         .layer(cors)
         .with_state(state)
 }
@@ -85,7 +87,8 @@ async fn root() -> Json<Value> {
             { "method": "GET",  "path": "/v1/policies",      "auth": "none",                    "purpose": "policy list" },
             { "method": "GET",  "path": "/v1/topology",      "auth": "none",                    "purpose": "topology model and live probe state" },
             { "method": "GET",  "path": "/v1/drift",         "auth": "none",                    "purpose": "drift/audit ledger entries, newest first" },
-            { "method": "POST", "path": "/v1/topology/sync", "auth": "X-Gate-Token required",   "purpose": "replace probe set from a fresh snapshot; flag unexplained removals" }
+            { "method": "POST", "path": "/v1/topology/sync", "auth": "X-Gate-Token required",   "purpose": "replace probe set from a fresh snapshot; flag unexplained removals" },
+            { "method": "POST", "path": "/v1/demo/decommission", "auth": "none",                "purpose": "drives the console scenarios: really takes the decommission target offline, with or without asking first" }
         ]
     }))
 }
@@ -279,6 +282,123 @@ async fn topology_get(State(st): State<SharedState>) -> Response {
 }
 
 // ---------------------------------------------------------------------------
+
+/// Drives the console's guided scenarios. `approved: true` asks the gate for
+/// permission first (a real evaluate, recorded like any other); `false` skips
+/// straight to the removal, which is what makes it drift. Either way the target
+/// is genuinely knocked offline — nothing here fakes a status.
+#[derive(serde::Deserialize)]
+struct DemoReq {
+    approved: Option<bool>,
+}
+
+async fn demo_decommission(
+    State(st): State<SharedState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let ip = client_ip(&headers, peer);
+    if !rate_limit::check(&st, &ip).await {
+        return err(StatusCode::TOO_MANY_REQUESTS, "rate limit exceeded (30 req/min per client)");
+    }
+    let approved = serde_json::from_slice::<DemoReq>(&body)
+        .ok()
+        .and_then(|r| r.approved)
+        .unwrap_or(false);
+
+    let Some(mut client) = st.db_client().await else { return unavailable() };
+    let Ok(topo) = topology::views(&client).await else { return unavailable() };
+
+    // One demo at a time: if the target is already down, the previous run is
+    // still playing out and a second trigger would muddle the story.
+    let Ok(rows) = topology::all(&client).await else { return unavailable() };
+    match rows.iter().find(|t| t.hostname == demo::target()) {
+        None => return err(StatusCode::CONFLICT, "the decommission target is not in the topology model"),
+        Some(t) if t.status != "present" => {
+            return (
+                StatusCode::CONFLICT,
+                Json(json!({
+                    "error": "a decommission is already in progress",
+                    "target": demo::target(),
+                    "status": t.status
+                })),
+            )
+                .into_response()
+        }
+        Some(_) => {}
+    }
+
+    let mut decision = None;
+    if approved {
+        let Ok(enabled) = load_enabled(&client).await else { return unavailable() };
+        let params = json!({});
+        let d = policy::evaluate("service.stop", demo::target(), &params, &topo, &enabled);
+        let verdict = match d.effect {
+            Effect::Allow => "allow",
+            Effect::Refuse => "refuse",
+        };
+        let entry = ledger::append(
+            &mut client,
+            &st.signing_key,
+            NewEntry {
+                kind: "decision",
+                actor: "console-demo",
+                action: "service.stop",
+                target: demo::target(),
+                decision: verdict,
+                reason: &d.reason,
+                policy: d.policy,
+                params,
+                authenticated: st.token_matches(header_token(&headers)),
+            },
+        )
+        .await;
+        let Ok(entry) = entry else {
+            return err(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "ledger write failed — decision not recorded, the gate fails closed",
+            );
+        };
+        // The gate refusing its own demo would be a policy change, not a bug —
+        // honour it rather than knocking the service over anyway.
+        if verdict == "refuse" {
+            return Json(json!({
+                "started": false,
+                "approved": true,
+                "decision": verdict,
+                "reason": d.reason,
+                "policy": d.policy,
+                "entry": { "id": entry.id, "hmac": entry.hmac }
+            }))
+            .into_response();
+        }
+        decision = Some(json!({
+            "decision": verdict,
+            "reason": d.reason,
+            "policy": d.policy,
+            "entry": { "id": entry.id, "hmac": entry.hmac }
+        }));
+    }
+
+    if let Err(e) = demo::play_dead(demo::PLAYDEAD_SECONDS).await {
+        eprintln!("gate: demo decommission failed: {e}");
+        return err(StatusCode::BAD_GATEWAY, "could not reach the decommission target");
+    }
+
+    Json(json!({
+        "started": true,
+        "approved": approved,
+        "target": demo::target(),
+        "offlineSeconds": demo::PLAYDEAD_SECONDS,
+        "probeIntervalSeconds": 15,
+        "failuresNeeded": 3,
+        "expect": if approved { "removed-audited" } else { "missing-unaudited" },
+        "expectKind": if approved { "audit" } else { "drift" },
+        "authorization": decision
+    }))
+    .into_response()
+}
 
 async fn topology_sync(
     State(st): State<SharedState>,

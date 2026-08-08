@@ -177,7 +177,9 @@
   }
   .cols .panel { margin-bottom: 0; }
   @media (max-width: 960px) {
-    .cols { grid-template-columns: 1fr; }
+    /* minmax(0,…) not 1fr: a plain 1fr track floors at its content's min-width,
+       so the ledger table's min-width would push the whole page sideways. */
+    .cols { grid-template-columns: minmax(0, 1fr); }
     .panel-simulate { order: -1; }
   }
 
@@ -216,10 +218,13 @@
   tr:last-child td { border-bottom: none; }
   td.reason {
     white-space: normal;
-    min-width: 150px;
-    max-width: 260px;
+    min-width: 120px;
+    max-width: 230px;
     color: var(--muted);
   }
+  /* Let the action wrap at the arrow so the policy column, which says WHY the
+     gate decided, stays on screen instead of scrolling off. */
+  td.act { white-space: normal; min-width: 96px; }
   td.hmac { color: var(--faint); font-size: 11.5px; }
   .arr { color: var(--faint); }
   .kind { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; font-weight: 650; }
@@ -331,6 +336,123 @@
     padding: 0 4px;
   }
 
+  /* ---- lede + mechanism ---- */
+  .lede {
+    max-width: 74ch;
+    margin: 2px 0 18px;
+    font-size: 15px;
+    line-height: 1.62;
+    color: #c3c8d4;
+  }
+  .steps {
+    list-style: none;
+    margin: 0 0 18px;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .step {
+    background: var(--panel-deep);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas: "n title" ". body";
+    column-gap: 9px;
+    row-gap: 3px;
+    align-items: center;
+  }
+  .step-n {
+    grid-area: n;
+    width: 19px; height: 19px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font: 600 11px/1 var(--mono);
+    color: var(--green);
+    background: var(--green-dim);
+    border: 1px solid rgba(52, 211, 153, .3);
+  }
+  .step b { grid-area: title; font-size: 13.5px; letter-spacing: .01em; }
+  .step span:last-child { grid-area: body; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+  /* ---- scenario rail ---- */
+  .scen-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+    /* Natural heights: once each card carries its own result, stretching them
+       to match only opens a gap above the shortest one. */
+    align-items: start;
+  }
+  .scen {
+    background: var(--panel-deep);
+    border: 1px solid var(--border-2);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .scen-top { display: flex; align-items: center; gap: 9px; }
+  .scen-n {
+    width: 22px; height: 22px; flex: none;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font: 600 12px/1 var(--mono);
+    color: var(--fg);
+    background: #1b2130;
+    border: 1px solid var(--border-2);
+  }
+  .scen h3 { margin: 0; font-size: 14.5px; font-weight: 600; letter-spacing: .01em; }
+  .scen-body { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .scen-body code, .scen-note code {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: #171c28;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0 4px;
+    color: #cfd5e2;
+  }
+  .scen-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .scen-time { font: 11.5px/1 var(--mono); color: var(--faint); }
+  .chip-audit { color: var(--green); background: var(--green-dim); border: 1px solid rgba(52, 211, 153, .3); }
+  .chip-refuse { color: var(--red); background: var(--red-dim); border: 1px solid rgba(248, 113, 113, .3); }
+  .chip-drift { color: var(--amber); background: var(--amber-dim); border: 1px solid rgba(251, 191, 36, .32); }
+  .scen-run {
+    appearance: none;
+    border: 1px solid var(--border-2);
+    background: #1a2030;
+    color: var(--fg);
+    border-radius: 7px;
+    padding: 9px 12px;
+    font: 600 13px/1 inherit;
+    letter-spacing: .02em;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+  }
+  .scen-run:hover:not(:disabled) { background: #222a3c; border-color: #35405a; }
+  .scen-run:disabled { opacity: .5; cursor: default; }
+  .scen-out {
+    border-top: 1px solid var(--border);
+    padding-top: 9px;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  .scen-out[hidden] { display: none; }
+  .scen-out .verdict { font-weight: 600; letter-spacing: .02em; }
+  .scen-out .why { color: var(--muted); margin-top: 3px; }
+  .scen-out .trace { font-family: var(--mono); font-size: 11.5px; color: var(--faint); margin-top: 6px; }
+  .scen-out .trace div { padding: 1px 0; }
+  .scen-out .trace .hit { color: var(--amber); }
+  .scen-note { margin: 12px 0 0; font-size: 12px; color: var(--faint); line-height: 1.55; }
+
+  @media (max-width: 640px) {
+    .steps { grid-template-columns: 1fr; }
+  }
+
   @media (max-width: 430px) {
     .wrap { padding: 14px 10px 26px; }
     .panel { padding: 13px 12px; }
@@ -361,13 +483,95 @@
       </svg>
       <div>
         <h1>Esclusa</h1>
-        <p class="tagline">every mutating call evaluated against live topology before it runs</p>
+        <p class="tagline">A safety gate for AI agents that change infrastructure.</p>
       </div>
     </div>
     <div id="chain-badge" class="badge" title="GET /v1/ledger/verify — full HMAC chain recomputation">
       <span class="badge-dot"></span><span id="chain-text">checking chain&hellip;</span>
     </div>
   </header>
+
+  <p class="lede">
+    A coding agent asks the gate before it touches your infrastructure. The gate
+    answers against the live service topology, signs the decision into a ledger
+    that cannot be quietly edited, then keeps probing the network to catch
+    whatever happened anyway.
+  </p>
+
+  <ol class="steps">
+    <li class="step">
+      <span class="step-n">1</span>
+      <b>Evaluate</b>
+      <span>The agent proposes an action. The gate allows or refuses it, and records either way.</span>
+    </li>
+    <li class="step">
+      <span class="step-n">2</span>
+      <b>Observe</b>
+      <span>Probes run every 15 s from inside the private network, catching changes that skipped the gate.</span>
+    </li>
+    <li class="step">
+      <span class="step-n">3</span>
+      <b>Prove</b>
+      <span>Every entry is HMAC-chained, so editing the record breaks it at that row.</span>
+    </li>
+  </ol>
+
+  <section class="panel">
+    <div class="sec-head">
+      <h2>Try it</h2>
+      <span class="sec-sub">three things a coding agent might do to this project, right now</span>
+    </div>
+    <div class="scen-grid">
+
+      <article class="scen" data-scenario="refuse">
+        <div class="scen-top">
+          <span class="scen-n">1</span>
+          <h3>Delete the database</h3>
+        </div>
+        <p class="scen-body">An agent decides <code>db</code> is unused and tries to drop it.</p>
+        <div class="scen-meta">
+          <span class="chip chip-refuse">expect refused</span>
+          <span class="scen-time">instant</span>
+        </div>
+        <button class="scen-run" type="button" data-scenario="refuse">Run</button>
+        <div class="scen-out" aria-live="polite" hidden></div>
+      </article>
+
+      <article class="scen" data-scenario="audited">
+        <div class="scen-top">
+          <span class="scen-n">2</span>
+          <h3>Retire a service, properly</h3>
+        </div>
+        <p class="scen-body">Ask the gate first, then really take <code>oldworker</code> offline.</p>
+        <div class="scen-meta">
+          <span class="chip chip-audit">expect audited</span>
+          <span class="scen-time">~45 s</span>
+        </div>
+        <button class="scen-run" type="button" data-scenario="audited">Run</button>
+        <div class="scen-out" aria-live="polite" hidden></div>
+      </article>
+
+      <article class="scen" data-scenario="drift">
+        <div class="scen-top">
+          <span class="scen-n">3</span>
+          <h3>Go behind the gate's back</h3>
+        </div>
+        <p class="scen-body">Take <code>oldworker</code> offline with no approval on record.</p>
+        <div class="scen-meta">
+          <span class="chip chip-drift">expect drift</span>
+          <span class="scen-time">~45 s</span>
+        </div>
+        <button class="scen-run" type="button" data-scenario="drift">Run</button>
+        <div class="scen-out" aria-live="polite" hidden></div>
+      </article>
+
+    </div>
+    <p class="scen-note">
+      Scenarios 2 and 3 genuinely stop <code>oldworker</code> answering for 90 s — the
+      probes below are failing for real. It restarts itself, and it exists to be
+      knocked over.
+    </p>
+  </section>
 
   <section class="panel">
     <div class="sec-head">
@@ -404,8 +608,9 @@
 
     <aside class="panel panel-simulate">
       <div class="sec-head">
-        <h2>Simulate an agent</h2>
-        <span class="sec-sub mono">POST /v1/evaluate</span>
+        <h2>Any other action</h2>
+        <span class="sec-sub">compose your own and see how the policies rule on it</span>
+        <span class="sec-meta mono">POST /v1/evaluate</span>
       </div>
       <form id="sim-form" class="sim-form" autocomplete="off">
         <label for="sim-actor">actor</label>
@@ -702,7 +907,7 @@
           '<td><span class="kind kind-' + kindCls + '">' + esc(kind) + '</span></td>' +
           '<td>' + esc(e.actor || 'anonymous') +
             (e.authenticated ? '<span class="auth-tag">auth</span>' : '') + '</td>' +
-          '<td class="mono">' + esc(e.action || '—') +
+          '<td class="mono act">' + esc(e.action || '—') +
             ' <span class="arr">→</span> ' + esc(e.target || '—') + '</td>' +
           '<td>' + chip(e.decision) + '</td>' +
           '<td class="reason" title="' + esc(reason) + '">' + esc(reason) + '</td>' +
@@ -847,6 +1052,190 @@
       busy = false;
       els.submit.disabled = false;
       els.submit.textContent = 'Evaluate';
+    });
+  });
+
+  /* ---------- guided scenarios ---------- */
+
+  // Scenario 1 resolves in one request. Scenarios 2 and 3 knock oldworker
+  // offline for real, so they finish only when the probe loop has failed three
+  // times — roughly 45 s. Narrating that wait is the point: it is the evidence
+  // that something is actually watching.
+  var SCENARIOS = {
+    refuse: {
+      run: function () {
+        return fetchJSON('/v1/evaluate', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ actor: 'console-demo', action: 'service.delete', target: 'db' })
+        });
+      }
+    },
+    audited: { approved: true, expectStatus: 'removed-audited' },
+    drift: { approved: false, expectStatus: 'missing-unaudited' }
+  };
+
+  var scenarioBusy = false;
+
+  function scenEls(name) {
+    var card = document.querySelector('.scen[data-scenario="' + name + '"]');
+    return {
+      card: card,
+      btn: card.querySelector('.scen-run'),
+      out: card.querySelector('.scen-out')
+    };
+  }
+
+  function scenShow(name, html) {
+    var e = scenEls(name);
+    e.out.innerHTML = html;
+    e.out.hidden = false;
+  }
+
+  function lockScenarios(on, activeName, label) {
+    scenarioBusy = on;
+    ['refuse', 'audited', 'drift'].forEach(function (n) {
+      var e = scenEls(n);
+      e.btn.disabled = on;
+      if (n === activeName) { e.btn.textContent = on ? label : 'Run again'; }
+      else if (!on) { e.btn.textContent = e.btn.dataset.ran ? 'Run again' : 'Run'; }
+    });
+  }
+
+  function verdictLine(kind, text) {
+    var cls = kind === 'allow' || kind === 'audit' ? 'chip-audit'
+            : kind === 'refuse' ? 'chip-refuse' : 'chip-drift';
+    return '<span class="verdict"><span class="chip ' + cls + '">' + esc(text) + '</span></span>';
+  }
+
+  function runRefuse() {
+    lockScenarios(true, 'refuse', 'asking…');
+    scenShow('refuse', '<div class="trace"><div>POST /v1/evaluate service.delete → db</div></div>');
+    SCENARIOS.refuse.run().then(function (r) {
+      if (!r.ok || !r.data || !r.data.decision) {
+        scenShow('refuse', '<div class="why">gate did not answer (' + r.status + ')</div>');
+        return;
+      }
+      var d = r.data;
+      scenShow('refuse',
+        verdictLine(d.decision, d.decision) +
+        '<div class="why">' + esc(d.reason || '') + '</div>' +
+        '<div class="trace"><div>policy ' + esc(d.policy || '—') +
+        (d.entry ? ' · ledger #' + esc(String(d.entry.id)) +
+                   ' · ' + esc(String(d.entry.hmac || '').slice(0, 8)) : '') +
+        '</div></div>');
+      setTimeout(refreshAll, 500);
+    }).catch(function () {
+      scenShow('refuse', '<div class="why">gate unreachable at ' + esc(GATE) + '</div>');
+    }).finally(function () {
+      scenEls('refuse').btn.dataset.ran = '1';
+      lockScenarios(false, 'refuse');
+    });
+  }
+
+  function runDecommission(name) {
+    var cfg = SCENARIOS[name];
+    lockScenarios(true, name, 'running…');
+    scenShow(name, '<div class="trace"><div>asking the gate…</div></div>');
+
+    fetchJSON('/v1/demo/decommission', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ approved: !!cfg.approved })
+    }).then(function (r) {
+      if (r.status === 409) {
+        scenShow(name, '<div class="why">a decommission is already playing out — ' +
+          'wait for oldworker to come back, then try again</div>');
+        lockScenarios(false, name);
+        return;
+      }
+      if (!r.ok || !r.data || !r.data.started) {
+        scenShow(name, '<div class="why">could not start (' + r.status + ')' +
+          apiDetail(r.data) + '</div>');
+        lockScenarios(false, name);
+        return;
+      }
+      var head = cfg.approved
+        ? '<div>authorised · ledger #' +
+          esc(String((r.data.authorization && r.data.authorization.entry &&
+                      r.data.authorization.entry.id) || '?')) + '</div>'
+        : '<div>no approval requested</div>';
+      var host = r.data.target || 'oldworker';
+      head += '<div>' + esc(host) + ' taken offline for ' +
+              esc(String(r.data.offlineSeconds)) + ' s</div>';
+      watchProbes(name, head, host);
+    }).catch(function () {
+      scenShow(name, '<div class="why">gate unreachable at ' + esc(GATE) + '</div>');
+      lockScenarios(false, name);
+    });
+  }
+
+  // Poll the topology until the gate classifies the removal. Rendering
+  // consecutive_failures as it climbs is what makes the probe loop visible.
+  function watchProbes(name, head, host) {
+    var started = Date.now();
+    var deadline = started + 120000;
+
+    function elapsed() {
+      var s = Math.round((Date.now() - started) / 1000);
+      return (s < 10 ? '0:0' : '0:') + s;
+    }
+
+    function paint(failures, done, status) {
+      var lines = head;
+      for (var i = 1; i <= 3; i++) {
+        if (failures >= i) {
+          lines += '<div class="hit">probe ' + i + ' of 3 · failed</div>';
+        } else if (!done) {
+          lines += '<div>probe ' + i + ' of 3 · waiting</div>';
+        }
+      }
+      var body = '<div class="trace">' + lines + '<div>' + elapsed() + '</div></div>';
+      if (!done) {
+        scenShow(name, '<div class="why">watching the private network…</div>' + body);
+        return;
+      }
+      var isDrift = status === 'missing-unaudited';
+      scenShow(name,
+        verdictLine(isDrift ? 'drift' : 'audit', isDrift ? 'unaudited drift' : 'removal audited') +
+        '<div class="why">' + (isDrift
+          ? 'The service stopped answering and no approval covers it. The gate flagged it and the banner above went red.'
+          : 'The service stopped answering and a matching approval was on record, so the gate filed it as an audited removal.') +
+        '</div>' + body);
+    }
+
+    paint(0, false);
+
+    var timer = setInterval(function () {
+      fetchJSON('/v1/topology').then(function (r) {
+        var rows = r.ok ? asList(r.data, ['services', 'topology', 'items']) : [];
+        var row = null;
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i].hostname === host) { row = rows[i]; break; }
+        }
+        if (!row) { return; }
+        var failures = Number(row.consecutive_failures) || 0;
+        var settled = row.status === 'missing-unaudited' || row.status === 'removed-audited';
+        paint(settled ? 3 : failures, settled, row.status);
+        if (settled) {
+          clearInterval(timer);
+          scenEls(name).btn.dataset.ran = '1';
+          lockScenarios(false, name);
+          refreshAll();
+        } else if (Date.now() > deadline) {
+          clearInterval(timer);
+          scenShow(name, '<div class="why">gave up waiting — check the topology panel below</div>');
+          lockScenarios(false, name);
+        }
+      }).catch(function () { /* transient; the next tick retries */ });
+    }, 3000);
+  }
+
+  document.querySelectorAll('.scen-run').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (scenarioBusy) { return; }
+      var name = btn.dataset.scenario;
+      if (name === 'refuse') { runRefuse(); } else { runDecommission(name); }
     });
   });
 

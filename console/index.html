@@ -2,18 +2,860 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Esclusa</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Esclusa — console</title>
 <style>
-  body { background: #0b0d12; color: #e8eaf0; font-family: -apple-system, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-  main { text-align: center; }
-  h1 { font-size: 2rem; letter-spacing: 0.02em; }
-  p { color: #8a8f9c; }
+  :root {
+    --bg: #0b0d12;
+    --panel: #10131a;
+    --panel-deep: #0d1017;
+    --border: #1d2230;
+    --border-2: #262c3d;
+    --fg: #e8eaf0;
+    --muted: #8a8f9c;
+    --faint: #5b6170;
+    --green: #34d399;
+    --green-dim: rgba(52, 211, 153, .12);
+    --red: #f87171;
+    --red-dim: rgba(248, 113, 113, .12);
+    --amber: #fbbf24;
+    --amber-dim: rgba(251, 191, 36, .12);
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    background-image: radial-gradient(900px 340px at 50% -80px, rgba(52, 211, 153, .07), transparent 70%);
+    background-repeat: no-repeat;
+    color: var(--fg);
+    font: 14px/1.5 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  a { color: var(--green); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .mono { font-family: var(--mono); }
+  .muted { color: var(--muted); }
+
+  /* ---- alert bars ---- */
+  .bars { position: sticky; top: 0; z-index: 20; }
+  .bar {
+    padding: 9px 16px;
+    font-size: 13px;
+    text-align: center;
+    backdrop-filter: blur(4px);
+  }
+  .bar[hidden] { display: none; }
+  .bar-drift {
+    background: rgba(58, 16, 22, .96);
+    color: #ffc2c2;
+    border-bottom: 1px solid rgba(248, 113, 113, .45);
+  }
+  .bar-drift strong { color: var(--red); text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
+  .bar-offline {
+    background: rgba(46, 34, 8, .96);
+    color: #ffdf9e;
+    border-bottom: 1px solid rgba(251, 191, 36, .4);
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 32px; }
+
+  /* ---- header ---- */
+  .hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 6px 2px 20px;
+  }
+  .brand { display: flex; align-items: center; gap: 13px; min-width: 0; }
+  .logo { flex: none; color: var(--green); filter: drop-shadow(0 0 6px rgba(52, 211, 153, .45)); }
+  .brand h1 {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: .05em;
+  }
+  .tagline { margin: 1px 0 0; font-size: 12.5px; color: var(--muted); }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 13px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    border: 1px solid var(--border-2);
+    background: var(--panel);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .badge-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+  .badge-ok { color: var(--green); border-color: rgba(52, 211, 153, .4); background: var(--green-dim); }
+  .badge-ok .badge-dot { background: var(--green); box-shadow: 0 0 7px rgba(52, 211, 153, .8); }
+  .badge-bad { color: var(--red); border-color: rgba(248, 113, 113, .4); background: var(--red-dim); }
+  .badge-bad .badge-dot { background: var(--red); box-shadow: 0 0 7px rgba(248, 113, 113, .8); }
+
+  /* ---- panels ---- */
+  .panel {
+    background: linear-gradient(180deg, #11151d, #0e1118);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 13px;
+  }
+  .sec-head h2 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--fg);
+  }
+  .sec-sub { font-size: 12px; color: var(--faint); }
+  .sec-meta { margin-left: auto; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .placeholder { color: var(--faint); font-size: 13px; padding: 8px 2px; }
+
+  /* ---- topology grid ---- */
+  .topo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
+    gap: 10px;
+  }
+  .tcard {
+    background: var(--panel-deep);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 12px;
+    min-width: 0;
+  }
+  .tcard-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .thost {
+    font-weight: 650;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .dot.ok   { background: var(--green); box-shadow: 0 0 8px rgba(52, 211, 153, .75); }
+  .dot.warn { background: var(--amber); box-shadow: 0 0 8px rgba(251, 191, 36, .75); }
+  .dot.bad  { background: var(--red);   box-shadow: 0 0 8px rgba(248, 113, 113, .75); }
+  .dot.gone { background: #454b59; }
+  .tag {
+    margin-left: auto;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--faint);
+    border: 1px solid var(--border-2);
+    border-radius: 4px;
+    padding: 1px 5px;
+    flex: none;
+  }
+  .tmeta { margin-top: 6px; font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+  .tstatus { margin-top: 3px; font-size: 11.5px; color: var(--faint); }
+  .tstatus.st-warn { color: var(--amber); }
+  .tstatus.st-bad { color: var(--red); }
+
+  /* ---- two-column area ---- */
+  .cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 18px;
+    align-items: start;
+  }
+  .cols .panel { margin-bottom: 0; }
+  @media (max-width: 960px) {
+    .cols { grid-template-columns: 1fr; }
+    .panel-simulate { order: -1; }
+  }
+
+  /* ---- ledger table ---- */
+  /* The feed grows without bound as the demo runs; cap it so the page keeps a
+     fixed height and the simulate form stays reachable. */
+  .table-wrap {
+    overflow: auto;
+    max-height: min(62vh, 620px);
+    margin: 0 -4px;
+    padding: 0 4px;
+    overscroll-behavior: contain;
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 12.5px; }
+  th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding: 6px 10px 8px 2px;
+    border-bottom: 1px solid var(--border-2);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--panel);
+  }
+  td {
+    padding: 7px 7px 7px 2px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  td.reason {
+    white-space: normal;
+    min-width: 150px;
+    max-width: 260px;
+    color: var(--muted);
+  }
+  td.hmac { color: var(--faint); font-size: 11.5px; }
+  .arr { color: var(--faint); }
+  .kind { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; font-weight: 650; }
+  .kind-decision { color: var(--faint); }
+  .kind-drift { color: var(--red); }
+  .kind-audit { color: var(--amber); }
+  .kind-system { color: var(--muted); }
+  .chip {
+    display: inline-block;
+    padding: 1px 9px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+  }
+  .chip-allow  { color: var(--green); background: var(--green-dim); border-color: rgba(52, 211, 153, .35); }
+  .chip-refuse { color: var(--red);   background: var(--red-dim);   border-color: rgba(248, 113, 113, .35); }
+  .chip-flag   { color: var(--amber); background: var(--amber-dim); border-color: rgba(251, 191, 36, .35); }
+  .chip-info   { color: var(--muted); background: rgba(138, 143, 156, .1); border-color: rgba(138, 143, 156, .3); }
+  .auth-tag {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    color: var(--green);
+    border: 1px solid rgba(52, 211, 153, .35);
+    border-radius: 4px;
+    padding: 0 4px;
+    margin-left: 5px;
+    vertical-align: 1px;
+  }
+
+  /* ---- simulate form ---- */
+  .sim-form label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 12px 0 5px;
+  }
+  .sim-form label:first-child { margin-top: 0; }
+  .sim-form .opt { font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .sim-form input, .sim-form select, .sim-form textarea {
+    width: 100%;
+    background: var(--panel-deep);
+    color: var(--fg);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: 13px/1.4 var(--mono);
+    outline: none;
+  }
+  .sim-form input:focus, .sim-form select:focus, .sim-form textarea:focus {
+    border-color: rgba(52, 211, 153, .55);
+    box-shadow: 0 0 0 3px rgba(52, 211, 153, .1);
+  }
+  .sim-form textarea { resize: vertical; min-height: 58px; }
+  .sim-form button {
+    margin-top: 14px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 8px;
+    background: var(--green);
+    color: #062a1c;
+    font-size: 13px;
+    font-weight: 750;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .sim-form button:hover:not(:disabled) { filter: brightness(1.1); }
+  .sim-form button:disabled { opacity: .55; cursor: default; }
+  .sim-result {
+    margin-top: 14px;
+    padding: 12px 13px;
+    border-radius: 9px;
+    background: var(--panel-deep);
+    border: 1px solid var(--border-2);
+    border-left: 3px solid var(--faint);
+    font-size: 13px;
+  }
+  .sim-result[hidden] { display: none; }
+  .sr-ok   { border-left-color: var(--green); }
+  .sr-bad  { border-left-color: var(--red); }
+  .sr-warn { border-left-color: var(--amber); }
+  .sr-reason { margin-top: 7px; color: var(--fg); }
+  .sr-meta { margin-top: 7px; font-size: 11.5px; color: var(--faint); }
+
+  /* ---- footer ---- */
+  footer {
+    margin-top: 22px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 6px 22px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--faint);
+  }
+  footer code {
+    font-family: var(--mono);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0 4px;
+  }
+
+  @media (max-width: 430px) {
+    .wrap { padding: 14px 10px 26px; }
+    .panel { padding: 13px 12px; }
+    .brand h1 { font-size: 18px; }
+    .tagline { font-size: 11.5px; }
+    .topo-grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+  }
 </style>
 </head>
 <body>
-<main>
-  <h1>Esclusa — live</h1>
-  <p>Zerops Challenge, August 8&ndash;9, 2026.</p>
-</main>
+
+<div class="bars">
+  <div id="drift-banner" class="bar bar-drift" role="alert" hidden></div>
+  <div id="offline-banner" class="bar bar-offline" role="status" hidden></div>
+</div>
+
+<div class="wrap">
+
+  <header class="hdr">
+    <div class="brand">
+      <svg class="logo" width="34" height="34" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M4 3v18" />
+        <path d="M20 3v18" />
+        <path d="M4 9l8 4 8-4" />
+        <path d="M7.5 16.5h2M11 16.5h2M14.5 16.5h2" stroke-opacity=".45" stroke-width="1.4" />
+      </svg>
+      <div>
+        <h1>Esclusa</h1>
+        <p class="tagline">every mutating call evaluated against live topology before it runs</p>
+      </div>
+    </div>
+    <div id="chain-badge" class="badge" title="GET /v1/ledger/verify — full HMAC chain recomputation">
+      <span class="badge-dot"></span><span id="chain-text">checking chain&hellip;</span>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="sec-head">
+      <h2>Topology</h2>
+      <span class="sec-sub">live probes inside the private network &middot; every 15 s</span>
+    </div>
+    <div id="topo-grid" class="topo-grid">
+      <div class="placeholder">awaiting gate&hellip;</div>
+    </div>
+  </section>
+
+  <div class="cols">
+
+    <section class="panel">
+      <div class="sec-head">
+        <h2>Ledger</h2>
+        <span class="sec-sub">tamper-evident decision chain &middot; refresh 5 s</span>
+        <span id="ledger-meta" class="sec-meta"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>time</th><th>kind</th><th>actor</th><th>action</th>
+              <th>decision</th><th>reason</th><th>policy</th><th>hmac</th>
+            </tr>
+          </thead>
+          <tbody id="ledger-body">
+            <tr><td colspan="8" class="placeholder">awaiting gate&hellip;</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <aside class="panel panel-simulate">
+      <div class="sec-head">
+        <h2>Simulate an agent</h2>
+        <span class="sec-sub mono">POST /v1/evaluate</span>
+      </div>
+      <form id="sim-form" class="sim-form" autocomplete="off">
+        <label for="sim-actor">actor</label>
+        <input id="sim-actor" type="text" value="console-demo" spellcheck="false" />
+
+        <label for="sim-action">action</label>
+        <select id="sim-action">
+          <option value="service.delete" selected>service.delete</option>
+          <option value="service.stop">service.stop</option>
+          <option value="service.start">service.start</option>
+          <option value="service.scale">service.scale</option>
+          <option value="service.create">service.create</option>
+          <option value="env.set">env.set</option>
+          <option value="env.delete">env.delete</option>
+          <option value="deploy.push">deploy.push</option>
+        </select>
+
+        <label for="sim-target">target</label>
+        <input id="sim-target" type="text" list="host-list" value="db"
+               placeholder="hostname" spellcheck="false" />
+        <datalist id="host-list"></datalist>
+
+        <label for="sim-params">params <span class="opt">(JSON, optional)</span></label>
+        <textarea id="sim-params" rows="3" placeholder='{"minContainers": 0}'></textarea>
+
+        <button id="sim-submit" type="submit">Evaluate</button>
+      </form>
+      <div id="sim-result" class="sim-result" aria-live="polite" hidden></div>
+    </aside>
+
+  </div>
+
+  <footer>
+    <span>gate API &middot; <a id="gate-link" class="mono" href="#" target="_blank" rel="noopener"></a></span>
+    <span>built for the Zerops Challenge 2026</span>
+    <span>point elsewhere with <code>?gate=https://&hellip;</code></span>
+  </footer>
+
+</div>
+
+<script>
+'use strict';
+(function () {
+  var FALLBACK_GATE = 'https://gate-2a56-3000.prg1.zerops.app';
+  var LS_KEY = 'esclusa.gate';
+  var REFRESH_MS = 5000;
+  var DEFAULT_HOSTS = ['db', 'cache', 'storage', 'oldworker', 'gate', 'console', 'zcp'];
+
+  // Belt and suspenders: nothing below should ever reject unhandled, but a
+  // console page must never surface a red overlay in any browser.
+  window.addEventListener('unhandledrejection', function (ev) { ev.preventDefault(); });
+
+  function stripSlash(u) { return String(u).replace(/\/+$/, ''); }
+
+  function resolveGateBase() {
+    var override = null;
+    var cleared = false;
+    try {
+      var qs = new URLSearchParams(location.search);
+      if (qs.has('gate')) {
+        var v = (qs.get('gate') || '').trim();
+        if (v && /^https?:\/\//i.test(v)) { override = stripSlash(v); }
+        else if (!v) { cleared = true; } // ?gate= (empty) clears the override
+      }
+    } catch (e) { /* no URL API — fall through */ }
+    try {
+      if (override) { localStorage.setItem(LS_KEY, override); }
+      else if (cleared) { localStorage.removeItem(LS_KEY); }
+    } catch (e) { /* storage unavailable (file://, private mode) */ }
+    if (override) { return override; }
+    if (!cleared) {
+      try {
+        var stored = localStorage.getItem(LS_KEY);
+        if (stored && /^https?:\/\//i.test(stored)) { return stripSlash(stored); }
+      } catch (e) { /* ignore */ }
+    }
+    var host = (location.hostname || '').toLowerCase();
+    if (location.protocol === 'file:' || !host || host === 'localhost' || host === '127.0.0.1') {
+      return FALLBACK_GATE;
+    }
+    var labels = host.split('.');
+    if (labels[0].indexOf('console-') === 0) {
+      // console-2a56.prg1.zerops.app -> gate-2a56-3000.prg1.zerops.app
+      labels[0] = 'gate-' + labels[0].slice('console-'.length) + '-3000';
+      return 'https://' + labels.join('.');
+    }
+    return FALLBACK_GATE;
+  }
+
+  var GATE = resolveGateBase();
+
+  function $(id) { return document.getElementById(id); }
+
+  var els = {
+    driftBar: $('drift-banner'),
+    offlineBar: $('offline-banner'),
+    chainBadge: $('chain-badge'),
+    chainText: $('chain-text'),
+    topoGrid: $('topo-grid'),
+    ledgerBody: $('ledger-body'),
+    ledgerMeta: $('ledger-meta'),
+    form: $('sim-form'),
+    actor: $('sim-actor'),
+    action: $('sim-action'),
+    target: $('sim-target'),
+    params: $('sim-params'),
+    submit: $('sim-submit'),
+    result: $('sim-result'),
+    hostList: $('host-list'),
+    gateLink: $('gate-link')
+  };
+
+  els.gateLink.href = GATE;
+  els.gateLink.textContent = GATE.replace(/^https?:\/\//, '');
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function asList(data, keys) {
+    if (Array.isArray(data)) { return data; }
+    if (data && typeof data === 'object') {
+      for (var i = 0; i < keys.length; i++) {
+        if (Array.isArray(data[keys[i]])) { return data[keys[i]]; }
+      }
+    }
+    return [];
+  }
+
+  function fmtTime(ts) {
+    if (!ts) { return '—'; }
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) { return String(ts).slice(0, 19); }
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+
+  function chip(decision) {
+    var d = String(decision || 'info').toLowerCase();
+    var cls = (d === 'allow' || d === 'refuse' || d === 'flag') ? d : 'info';
+    return '<span class="chip chip-' + cls + '">' + esc(d) + '</span>';
+  }
+
+  // fetch wrapper: resolves {ok, status, data} on any HTTP response,
+  // rejects only on network failure / timeout. Callers always catch.
+  function fetchJSON(path, opts) {
+    var ctrl = null;
+    var timer = null;
+    var init = Object.assign({ mode: 'cors' }, opts || {});
+    if (typeof AbortController !== 'undefined') {
+      ctrl = new AbortController();
+      init.signal = ctrl.signal;
+      timer = setTimeout(function () { ctrl.abort(); }, 6000);
+    }
+    return fetch(GATE + path, init)
+      .then(function (res) {
+        return res.text().then(function (txt) {
+          var data = null;
+          try { data = txt ? JSON.parse(txt) : null; } catch (e) { /* non-JSON body */ }
+          return { ok: res.ok, status: res.status, data: data };
+        });
+      })
+      .finally(function () { if (timer) { clearTimeout(timer); } });
+  }
+
+  /* ---------- renderers ---------- */
+
+  function setReachable(ok) {
+    if (ok) {
+      els.offlineBar.hidden = true;
+    } else {
+      els.offlineBar.textContent =
+        'gate unreachable at ' + GATE + ' — retrying every 5 s';
+      els.offlineBar.hidden = false;
+    }
+  }
+
+  function renderVerify(r) {
+    if (!r || !r.ok || !r.data || typeof r.data.valid === 'undefined') {
+      els.chainBadge.className = 'badge';
+      els.chainText.textContent = 'chain unknown · gate offline';
+      return;
+    }
+    if (r.data.valid) {
+      var n = (r.data.checked != null) ? r.data.checked : '?';
+      els.chainBadge.className = 'badge badge-ok';
+      els.chainText.textContent = 'chain verified · ' + n + ' entries';
+    } else {
+      var at = (r.data.broken_at != null) ? r.data.broken_at : '?';
+      els.chainBadge.className = 'badge badge-bad';
+      els.chainText.textContent = 'chain broken at #' + at;
+    }
+  }
+
+  function statusInfo(row) {
+    var s = String(row.status || 'present');
+    if (s === 'removed-audited') {
+      return { dot: 'gone', cls: '', label: 'removed · audited' };
+    }
+    if (s === 'missing-unaudited') {
+      return { dot: 'bad', cls: 'st-bad', label: 'missing · unaudited' };
+    }
+    var fails = Number(row.consecutive_failures) || 0;
+    var probed = row.probe_method && row.probe_method !== 'none';
+    if (probed && (row.probe_ok === false || fails > 0)) {
+      return { dot: 'warn', cls: 'st-warn', label: 'failing · ' + fails + ' consecutive' };
+    }
+    return { dot: 'ok', cls: '', label: probed ? 'present' : 'present · unprobed' };
+  }
+
+  var haveTopo = false;
+
+  function renderTopology(r) {
+    if (!r || !r.ok) {
+      if (!haveTopo) {
+        els.topoGrid.innerHTML = '<div class="placeholder">awaiting gate…</div>';
+      }
+      return;
+    }
+    var rows = asList(r.data, ['services', 'topology', 'entries', 'items']);
+    if (!rows.length) {
+      if (!haveTopo) {
+        els.topoGrid.innerHTML = '<div class="placeholder">topology is empty</div>';
+      }
+      return;
+    }
+    haveTopo = true;
+    var hosts = [];
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i] || {};
+      var host = row.hostname || row.host || ('service-' + i);
+      hosts.push(host);
+      var st = statusInfo(row);
+      var probe = (row.probe_method === 'tcp')
+        ? 'tcp:' + (row.tcp_port != null ? row.tcp_port : '?')
+        : (row.probe_method || 'none');
+      var typ = row.service_type || row.type || 'service';
+      html +=
+        '<div class="tcard" title="last probe: ' + esc(row.last_probe || 'never') + '">' +
+          '<div class="tcard-head">' +
+            '<span class="dot ' + st.dot + '"></span>' +
+            '<span class="thost">' + esc(host) + '</span>' +
+            (row.stateful ? '<span class="tag">stateful</span>' : '') +
+          '</div>' +
+          '<div class="tmeta">' + esc(typ) + ' · ' + esc(probe) + '</div>' +
+          '<div class="tstatus ' + st.cls + '">' + esc(st.label) + '</div>' +
+        '</div>';
+    }
+    els.topoGrid.innerHTML = html;
+    setHostList(hosts);
+  }
+
+  function setHostList(hosts) {
+    var html = '';
+    for (var i = 0; i < hosts.length; i++) {
+      html += '<option value="' + esc(hosts[i]) + '"></option>';
+    }
+    els.hostList.innerHTML = html;
+  }
+
+  var haveLedger = false;
+
+  function renderLedger(r) {
+    if (!r || !r.ok) {
+      if (!haveLedger) {
+        els.ledgerBody.innerHTML =
+          '<tr><td colspan="8" class="placeholder">awaiting gate…</td></tr>';
+        els.ledgerMeta.textContent = '';
+      }
+      return;
+    }
+    var entries = asList(r.data, ['entries', 'items']);
+    var total = (r.data && r.data.total != null) ? r.data.total : entries.length;
+    els.ledgerMeta.textContent = total + ' entries';
+    if (!entries.length) {
+      els.ledgerBody.innerHTML =
+        '<tr><td colspan="8" class="placeholder">no entries yet — send one with the form</td></tr>';
+      haveLedger = true;
+      return;
+    }
+    haveLedger = true;
+    var html = '';
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i] || {};
+      var kind = String(e.kind || 'decision');
+      var kindCls = (kind === 'drift' || kind === 'audit' || kind === 'system') ? kind : 'decision';
+      var reason = e.reason || '';
+      html +=
+        '<tr>' +
+          '<td class="mono" title="' + esc(e.ts || '') + '">' + esc(fmtTime(e.ts)) + '</td>' +
+          '<td><span class="kind kind-' + kindCls + '">' + esc(kind) + '</span></td>' +
+          '<td>' + esc(e.actor || 'anonymous') +
+            (e.authenticated ? '<span class="auth-tag">auth</span>' : '') + '</td>' +
+          '<td class="mono">' + esc(e.action || '—') +
+            ' <span class="arr">→</span> ' + esc(e.target || '—') + '</td>' +
+          '<td>' + chip(e.decision) + '</td>' +
+          '<td class="reason" title="' + esc(reason) + '">' + esc(reason) + '</td>' +
+          '<td class="mono muted">' + esc(e.policy || '—') + '</td>' +
+          '<td class="mono hmac">' + esc(String(e.hmac || '').slice(0, 8)) + '</td>' +
+        '</tr>';
+    }
+    els.ledgerBody.innerHTML = html;
+  }
+
+  function renderDrift(r) {
+    if (!r || !r.ok) { return; } // keep last known banner state on transient failure
+    var entries = asList(r.data, ['entries', 'items']).filter(function (e) {
+      return e && String(e.kind || '') === 'drift';
+    });
+    if (!entries.length) {
+      els.driftBar.hidden = true;
+      return;
+    }
+    var e = entries[0];
+    els.driftBar.innerHTML =
+      '<strong>unaudited drift</strong> — ' + esc(e.target || 'unknown target') +
+      ': ' + esc(e.reason || 'no reason recorded') +
+      ' <span class="mono">' + esc(fmtTime(e.ts)) + '</span>';
+    els.driftBar.hidden = false;
+  }
+
+  /* ---------- refresh loop ---------- */
+
+  var refreshing = false;
+
+  function refreshAll() {
+    if (refreshing) { return; }
+    refreshing = true;
+    Promise.allSettled([
+      fetchJSON('/v1/ledger/verify'),
+      fetchJSON('/v1/topology'),
+      fetchJSON('/v1/ledger?limit=50'),
+      fetchJSON('/v1/drift')
+    ]).then(function (results) {
+      var r = results.map(function (x) { return x.status === 'fulfilled' ? x.value : null; });
+      var okCount = r.filter(function (x) { return x && x.ok; }).length;
+      setReachable(okCount > 0);
+      renderVerify(r[0]);
+      renderTopology(r[1]);
+      renderLedger(r[2]);
+      renderDrift(r[3]);
+    }).catch(function () {
+      setReachable(false);
+    }).finally(function () {
+      refreshing = false;
+    });
+  }
+
+  /* ---------- simulate form ---------- */
+
+  var lastAutofill = '';
+
+  els.action.addEventListener('change', function () {
+    var cur = els.params.value.trim();
+    var fill = (els.action.value === 'service.scale') ? '{"minContainers": 0}' : '';
+    if (cur === '' || cur === lastAutofill) {
+      els.params.value = fill;
+      lastAutofill = fill;
+    }
+  });
+
+  function showResult(kind, html) {
+    els.result.className = 'sim-result sr-' + kind;
+    els.result.innerHTML = html;
+    els.result.hidden = false;
+  }
+
+  function showDecision(d) {
+    var ok = String(d.decision) === 'allow';
+    var meta = 'policy ' + esc(d.policy || '—');
+    if (d.entry) {
+      meta += ' · ledger entry #' + esc(String(d.entry.id != null ? d.entry.id : '?')) +
+              ' · ' + esc(String(d.entry.hmac || '').slice(0, 8));
+    }
+    showResult(ok ? 'ok' : 'bad',
+      chip(d.decision) +
+      '<div class="sr-reason">' + esc(d.reason || '') + '</div>' +
+      '<div class="sr-meta mono">' + meta + '</div>');
+  }
+
+  function apiDetail(data) {
+    if (data && typeof data === 'object') {
+      var m = data.error || data.reason || data.message;
+      if (m) { return ': ' + esc(String(m)); }
+    }
+    return '';
+  }
+
+  var busy = false;
+
+  els.form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    if (busy) { return; }
+    var target = els.target.value.trim();
+    if (!target) {
+      showResult('warn', 'target is required');
+      return;
+    }
+    var body = {
+      actor: els.actor.value.trim() || 'console-demo',
+      action: els.action.value,
+      target: target
+    };
+    var raw = els.params.value.trim();
+    if (raw) {
+      try { body.params = JSON.parse(raw); }
+      catch (e) {
+        showResult('warn', 'params is not valid JSON');
+        return;
+      }
+    }
+    busy = true;
+    els.submit.disabled = true;
+    els.submit.textContent = 'evaluating…';
+    fetchJSON('/v1/evaluate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (r.ok && r.data && r.data.decision) {
+        showDecision(r.data);
+        setTimeout(refreshAll, 600); // ledger picks it up right away
+      } else if (r.status === 429) {
+        showResult('warn', 'rate limited (429) — 30 req/min per IP, try again shortly');
+      } else if (r.status === 503) {
+        showResult('bad',
+          'ledger unavailable (503) — the gate fails closed: nothing recorded, nothing allowed');
+      } else if (r.status === 400) {
+        showResult('bad', 'gate rejected the request (400)' + apiDetail(r.data));
+      } else {
+        showResult('bad', 'unexpected gate response (' + r.status + ')' + apiDetail(r.data));
+      }
+    }).catch(function () {
+      showResult('bad', 'gate unreachable at ' + esc(GATE));
+    }).finally(function () {
+      busy = false;
+      els.submit.disabled = false;
+      els.submit.textContent = 'Evaluate';
+    });
+  });
+
+  /* ---------- boot ---------- */
+
+  setHostList(DEFAULT_HOSTS);
+  refreshAll();
+  setInterval(refreshAll, REFRESH_MS);
+})();
+</script>
 </body>
 </html>

@@ -1,0 +1,11 @@
+{
+  "services": [
+    { "hostname": "gate", "service_type": "rust", "stateful": false, "probe_method": "none", "tcp_port": null },
+    { "hostname": "console", "service_type": "static", "stateful": false, "probe_method": "tcp", "tcp_port": 80 },
+    { "hostname": "db", "service_type": "postgresql", "stateful": true, "probe_method": "tcp", "tcp_port": 5432 },
+    { "hostname": "cache", "service_type": "valkey", "stateful": true, "probe_method": "tcp", "tcp_port": 6379 },
+    { "hostname": "storage", "service_type": "object-storage", "stateful": true, "probe_method": "none", "tcp_port": null },
+    { "hostname": "oldworker", "service_type": "nodejs", "stateful": false, "probe_method": "tcp", "tcp_port": 3000 },
+    { "hostname": "zcp", "service_type": "zcp", "stateful": false, "probe_method": "none", "tcp_port": null }
+  ]
+}

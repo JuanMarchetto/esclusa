@@ -11,14 +11,29 @@ zerops:
         httpGet:
           port: 3000
           path: /ready
-        failureTimeout: 90s
-        retryPeriod: 10s
+        failureTimeout: 90
+        retryPeriod: 10
     run:
       base: rust@1
       ports:
         - port: 3000
           httpSupport: true
+      envVariables:
+        DATABASE_URL: ${db_connectionString}
+        CACHE_URL: ${cache_connectionString}
       start: ./gate
+
+  - setup: oldworker
+    build:
+      base: nodejs@22
+      deployFiles:
+        - oldworker/~
+    run:
+      base: nodejs@22
+      ports:
+        - port: 3000
+          httpSupport: false
+      start: node server.js
 
   - setup: console
     build:
